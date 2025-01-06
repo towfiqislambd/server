@@ -7,6 +7,8 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 5000;
 
+
+// All Middlewares
 app.use(cors({
     origin: [
         'http://localhost:5173'
@@ -15,6 +17,7 @@ app.use(cors({
 }))
 app.use(express.json())
 app.use(cookieParser())
+
 const verifyToken = (req, res, next) => {
     const token = req?.cookies?.token;
     if (!token) {
@@ -48,6 +51,7 @@ async function run() {
         const reviewCollection = database.collection('reviews');
         const cartCollection = database.collection('carts');
 
+        // Admin Middleware
         const verifyAdmin = async (req, res, next) => {
             const email = req.user.email;
             const query = { email }
@@ -60,7 +64,7 @@ async function run() {
         }
 
 
-        // Auth Related APIs
+        //************** Auth Related APIs *****************
 
         // Create Token
         app.post('/login', async (req, res) => {
@@ -78,7 +82,7 @@ async function run() {
         app.post('/logout', async (req, res) => {
             res
                 .clearCookie('token', {
-                    // maxAge: 0,
+                    maxAge: 0,
                     httpOnly: true,
                     secure: process.env.NODE_ENV === "production",
                     sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
@@ -87,7 +91,8 @@ async function run() {
         })
 
 
-        // Open APIs
+        // ******************** Open APIs ************************
+
         app.get('/all-menu', async (req, res) => {
             const result = await menuCollection.find().toArray();
             res.send(result)
@@ -113,7 +118,9 @@ async function run() {
             res.send(result)
         })
 
-        // Private APIs
+
+        // ******************** Private APIs ************************
+
         app.get('/users/admin/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             if (email !== req.user.email) {
@@ -140,20 +147,14 @@ async function run() {
         })
 
 
-
-
-
-
-
-
+        // Private Admin APIs
         app.get('/all-users', verifyToken, verifyAdmin, async (req, res) => {
             const users = await userCollection.find().toArray();
             res.send(users)
         })
-        app.delete('/all-users/:id', verifyToken, verifyAdmin, async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) };
-            const result = await userCollection.deleteOne(query);
+        app.post('/all-menu', verifyToken, verifyAdmin, async (req, res) => {
+            const item = req.body;
+            const result = await menuCollection.insertOne(item)
             res.send(result)
         })
         app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
@@ -167,13 +168,41 @@ async function run() {
             const result = await userCollection.updateOne(filter, updatedDoc);
             res.send(result)
         })
+        app.delete('/all-users/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await userCollection.deleteOne(query);
+            res.send(result)
+        })
 
-
-
-
-
-
-
+        app.delete('/all-menu/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await menuCollection.deleteOne(query)
+            res.send(result)
+        })
+        app.get('/updateItems/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await menuCollection.findOne(query)
+            res.send(result)
+        })
+        app.patch('/menu/updateItems/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const item = req.body;
+            const updatedDoc = {
+                $set: {
+                    name: item.name,
+                    recipe: item.recipe,
+                    category: item.category,
+                    price: item.price,
+                    image:item.image
+                }
+            }
+            const result = await menuCollection.updateOne(filter, updatedDoc)
+            res.send(result)
+        })
 
 
         await client.db("admin").command({ ping: 1 });
